@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en"><META charset="UTF-8">
+	<head>
+		<link rel="icon" type="image/svg+xml" href="favicon.svg">
+		<style>
+			:root {
+					--full-vw: 100vw; --full-vh: 100vh;
+					--px-width:	 calc(tan(atan2(var(--full-vw), 1px)));
+					--px-height: calc(tan(atan2(var(--full-vh), 1px)));
+			}
+			.flex { display: flex; }
+			body { justify-content: center; }
+			vbox {
+					flex-direction: column;
+					width: calc(1px * var(--px-width) * (1 - exp(0 - tan(atan2(var(--px-height),var(--px-width))))));
+			}
+			hbox { align-items: center; }
+			hbox > * { margin-inline: 4px; flex: 1; }
+		</style>
+		<script defer>
+			document.addEventListener("DOMContentLoaded", () => {
+					// const progressBar  = document.querySelector("progress");
+					const fileUpload   = document.querySelector("input");
+					// const cancelButton = document.querySelector("button");
+
+					fileUpload.addEventListener("change", () => {
+							const request = new XMLHttpRequest();
+							request.timeout = 5000;
+
+							const fileData = new FormData();
+							fileData.append("file", fileUpload.files[0]); // "file"ってなに？もっとファイルあればどうする？
+							request.open("PUT", "localhost:12345/home/mistekko/upload/file.mp4", true);
+							request.send(fileData);
+					})
+			});
+		</script>
+	</head>
+	<body class="central-column-container flex">
+		<vbox class="central-column flex">
+			<input type="file" />
+			<!-- <hbox class="flex"> -->
+			<!--	<progress>Progress</progress> -->
+			<!--	<button disabled=true>cancel</button> -->
+			<!-- </hbox> -->
+		</vbox>
+	</body>
+</html>
