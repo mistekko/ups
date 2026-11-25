@@ -18,6 +18,9 @@
 #define ADDR_NBO(MOST_SIGNIFICANT, SECOND, THIRD, LEAST) \
 	MOST_SIGNIFICANT | SECOND << 8 | THIRD << 16 | LEAST << 24
 
+const char output_separator[91] = "****************************************"
+                                  "****************************************";
+
 void die (const char *message) {
 	perror(message);
 	exit(1);
@@ -51,11 +54,11 @@ int main (void) {
 		DIR *test_packet_dir;
 		struct dirent *packet_file;
 		struct stat packet_stats;
+		char *packet, *fname;
 		int packet_fd;
-		char *packet;
 
 		puts("Trying packets");
-		puts("******************************");
+		puts(output_separator);
 
 		if (chdir("./test-packets") == -1) {
 			char *cwd = NULL;
@@ -76,18 +79,19 @@ int main (void) {
 
 		errno = 0;
 		while ((packet_file = readdir(test_packet_dir))) {
-			if (strcmp(packet_file->d_name, ".") == 0 \
-			    || strcmp(packet_file->d_name, "..") == 0)
+			fname = packet_file->d_name;
+
+			if (strcmp(fname, ".") == 0 || strcmp(fname, "..") == 0)
 				/* it's okay to call close(3) on an invalid fd */
 				goto cleanup_and_continue;
 
-			printf("%s... ", packet_file->d_name);
-			packet_fd = open(packet_file->d_name, O_RDONLY);
+			printf("%25s... ", fname);
+			packet_fd = open(fname, O_RDONLY);
 			if (packet_fd == -1) {
-				fprintf(stderr, "Failed to open %s: ", packet_file->d_name);
+				fprintf(stderr, "Failed to open %s: ", fname);
 				die(NULL);
 			}
-			stat(packet_file->d_name, &packet_stats);
+			stat(fname, &packet_stats);
 
 			{
 				ssize_t packetlen = packet_stats.st_size;
@@ -127,6 +131,8 @@ int main (void) {
 						goto flush_packet;
 					}
 
+					response += 13;
+
 					char *newline;
 					while (1) {
 						if (NULL != (newline = strchr(response, '\r'))) {
@@ -160,7 +166,7 @@ int main (void) {
 		if (errno != 0)
 			perror("Error while getting test packets");
 
-		puts("*******************************");
+		puts(output_separator);
 	}
 
 

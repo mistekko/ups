@@ -304,7 +304,7 @@ int main (void) {
 			if (error) {
 				switch(error) {
 				case ConnectionTerminated:
-					puts("*** Connection terminated ***");
+					puts("**** Connection terminated ************************");
 					continue;
 				case TooSmall:
 					respond(client_fd, 400,
