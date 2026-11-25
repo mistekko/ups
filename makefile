@@ -42,15 +42,17 @@ resources.h: up.html favicon.svg makefile
 	@echo # spacer for any subsequent recipes
 
 up: up.c resources.h
-	cc ${CFLAGS} -o up up.c
+	${CC} ${CFLAGS} -o up up.c
 
-tester: up tester.c makefile
-	cc ${CFLAGS} -o tester tester.c
+tester: up tester.c
+	${CC} ${CFLAGS} -o tester tester.c
+
+default: up
+
+all: tester up
 
 install: up
 	cp -f up "${PREFIX}/bin"
-
-all: tester up
 
 clean:
 	rm resources.h up tester
