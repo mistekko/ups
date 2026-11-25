@@ -1,4 +1,4 @@
-POST /bail HTTP/1.1
+PUT /bail HTTP/1.1
 Content-Length: long
 
 uhh....

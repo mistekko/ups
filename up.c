@@ -39,7 +39,6 @@ enum Target {
 
 enum Method {
 	Get,
-	Post,
 	Put
 };
 
@@ -123,9 +122,6 @@ int get_packet (int socket, struct packet *p) {
 	if (strncmp(buf, "GET", 3) == 0) {
 		p->method = Get;
 		parse_head += 4;
-	} else if (strncmp(buf, "POST", 4) == 0){
-		p->method = Post;
-		parse_head += 5;
 	} else if (strncmp(buf, "PUT", 3) == 0) {
 		p->method = Put;
 		parse_head += 4;
@@ -247,7 +243,6 @@ void ok (struct packet *p) {
 	char *method, *target;
 	switch (p->method) {
 	case Get:  method = "GET";  break;
-	case Post: method = "POST"; break;
 	case Put:  method = "PUT";  break;
 	} switch (p->target) {
 	case Page:    target = "/up.html";     break;
@@ -348,8 +343,6 @@ int main (void) {
 					target = target_packets[p.target];
 					write(client_fd, target, strlen(target));
 					ok(&p);
-					break;
-				case Post:
 					break;
 				case Put:
 					break;
