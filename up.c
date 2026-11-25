@@ -1,5 +1,6 @@
 #include <ctype.h>
 #include <poll.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -53,6 +54,23 @@ char *target_packets[] = {
 	[Page] = document_packet,
 	[Favicon] = favicon_packet
 };
+
+/* I plan to switch to using select(3) sometime in the future... */
+int connections[1024] = { 0 };
+
+static void cleanup (int sig) {
+	printf("Server termination requested. Cleaning up... ");
+
+	/* ...but for now we'll only worry about the listening socket and
+	 * the client socket */
+	for (int i = 0; i < 2; ++ i) {
+		if (connections[i]) close(connections[i]);
+	}
+
+	puts("done.");
+	signal(sig, SIG_DFL);
+	raise(sig);
+}
 
 static void die (const char *message) {
 	perror(message);
@@ -225,6 +243,21 @@ int respond (int client_fd, int code, const char *message) {
 	return 0;
 }
 
+void ok (struct packet *p) {
+	char *method, *target;
+	switch (p->method) {
+	case Get:  method = "GET";  break;
+	case Post: method = "POST"; break;
+	case Put:  method = "PUT";  break;
+	} switch (p->target) {
+	case Page:    target = "/up.html";     break;
+	case Favicon: target = "/favicon.svg"; break;
+	case Upload:  target = "/???";         break;
+	}
+
+	printf("200: %s %s\n", method, target);
+}
+
 int main (void) {
 	struct sockaddr_in sa = {
 		.sin_family = AF_INET,
@@ -240,8 +273,19 @@ int main (void) {
 	if (bind(socket_fd, (struct sockaddr *)&sa, sizeof(sa)) == -1)
 		die("Failed to bind socket");
 
+	{
+		int termination_signals[] = { SIGTERM, SIGINT, SIGQUIT, SIGHUP };
+		for (int i = 0; i < 4; ++ i) {
+			if (signal(termination_signals[i], cleanup) == SIG_IGN)
+				signal(termination_signals[i], SIG_IGN);
+		}
+	}
+
 	if (listen(socket_fd, 10) == -1)
 		die("Failed to start listening");
+
+	/* so the our signal handlers can close it and free up the port */
+	connections[0] = socket_fd;
 
 	int client_fd;
 	while (1) {
@@ -252,6 +296,9 @@ int main (void) {
 			continue;
 		}
 
+		/* it's perfunctory but good enough etiquette that I care */
+		connections[1] = client_fd;
+
 		struct packet p;
 		int error = 0;
 
@@ -259,11 +306,10 @@ int main (void) {
 			memset(&p, 0, sizeof(p));
 			error = get_packet(client_fd, &p);
 
-			// should we redirect people to up.html?
 			if (error) {
 				switch(error) {
 				case ConnectionTerminated:
-					puts("connection terminated");
+					puts("*** Connection terminated ***");
 					continue;
 				case TooSmall:
 					respond(client_fd, 400,
@@ -301,6 +347,7 @@ int main (void) {
 				case Get:
 					target = target_packets[p.target];
 					write(client_fd, target, strlen(target));
+					ok(&p);
 					break;
 				case Post:
 					break;
@@ -309,9 +356,11 @@ int main (void) {
 				}
 			}
 		}
+		close(client_fd);
+		connections[1] = 0;
 	}
-
 	close(socket_fd);
+	connections[0] = 0;
 
 	return 0;
 }
