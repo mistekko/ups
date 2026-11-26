@@ -1,5 +1,6 @@
 #include <ctype.h>
 #include <poll.h>
+#include <search.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -13,9 +14,9 @@
 /*     and const char favicon_packet[]  */
 #include "resources.h"
 
-#define PORT_NBO(PORT_HBO) (PORT_HBO << 8 | PORT_HBO >> 8) & 0xffff
+#define PORT_NBO(PORT_HBO) ((PORT_HBO << 8 | PORT_HBO >> 8) & 0xffff)
 #define IP_NBO(MOST_SIGNIFICANT_BYTE, BYTE2, BYTE3, BYTE4)	  \
-	MOST_SIGNIFICANT_BYTE | BYTE2 << 8 | BYTE3 << 16 | BYTE4 << 24
+	(MOST_SIGNIFICANT_BYTE | BYTE2 << 8 | BYTE3 << 16 | BYTE4 << 24)
 
 #define BUF_SIZE 512 /* size of all data buffers */
 
@@ -46,32 +47,35 @@ struct packet {
 	enum Method method;
 	enum Target target;
 	char *body;
+	char *target_path;
 	ssize_t body_len;
 };
 
-char *target_packets[] = {
+const char *target_packets[] = {
 	[Page] = document_packet,
 	[Favicon] = favicon_packet
 };
 
+const char page1[] = "/", page2[] = "/index.html", page3[] = "up.html";
+const char *gettable_pages[] = { page1, page2, page3 };
+
 /* I plan to switch to using select(3) sometime in the future... */
 int connections[1024] = { 0 };
 
-static void cleanup (int sig) {
+void cleanup (int sig) {
 	printf("Server termination requested. Cleaning up... ");
 
 	/* ...but for now we'll only worry about the listening socket and
 	 * the client socket */
-	for (int i = 0; i < 2; ++ i) {
-		if (connections[i]) close(connections[i]);
-	}
+	for (int i = 0; i < 2; ++ i)
+		if (connections[i]) shutdown(connections[i], SHUT_RDWR);
 
 	puts("done.");
 	signal(sig, SIG_DFL);
 	raise(sig);
 }
 
-static void die (const char *message) {
+void die (const char *message) {
 	perror(message);
 	exit(1);
 }
@@ -86,6 +90,15 @@ char *strcasestr (const char *haystack, const char *needle) {
 			}
 		}
 	return NULL;
+}
+
+/* allows us to avoid mind-flaying function-pointer cast, plus an LLVM bug */
+int strcmp_wrapper (const void *v1, const void *v2) {
+	return strcmp(*(const char **) v1, *(const char **) v2);
+}
+
+bool string_is_in_array (const char *s, const char *a[], size_t len) {
+	return NULL != lfind(&s, a, &len, sizeof(char *), strcmp_wrapper);
 }
 
 bool fd_is_readable (int fd) {
@@ -109,10 +122,7 @@ int get_packet (int socket, struct packet *p) {
 
 	buf_fill = read(socket, buf, BUF_SIZE - 1);
 	if (buf_fill == 0) return ConnectionTerminated;
-	if (buf[buf_fill - 1] == '\0') {
-		--buf_fill;
-		puts("read(3) would even write '\0'");
-	} else buf[buf_fill] = '\0';
+	buf[buf_fill] = '\0';
 
 	if (buf_fill < 18) {
 		flush_input(socket);
@@ -145,8 +155,18 @@ int get_packet (int socket, struct packet *p) {
 		else if (strstr(parse_head, "favicon.ico") != NULL) {
 			flush_input(socket);
 			return InvalidTarget;
-		} else
+		} else if (string_is_in_array(parse_head, gettable_pages, 3))
 			p->target = Page;
+		else {
+			if (p->method == Get) {
+				flush_input(socket);
+				return InvalidTarget;
+			}
+			p->target = Upload;
+			int target_path_size = strlen(parse_head) + 1;  /* + 1 for '\0' */
+			p->target_path = malloc(target_path_size);
+			memcpy(p->target_path, parse_head, target_path_size);
+		}
 		parse_head[target_len] = tmp;
 
 		if (p->method == Get) {
@@ -199,7 +219,7 @@ int get_packet (int socket, struct packet *p) {
 			return IncorrectContentLength;
 		}
 		/* or incorrectly high */
-		else if (!fd_is_readable(socket)) {
+		else if (unread_bytes > 0 && !fd_is_readable(socket)) {
 			flush_input(socket);
 			return IncorrectContentLength;
 		}
@@ -215,6 +235,7 @@ int get_packet (int socket, struct packet *p) {
 		p->body = body;
 	}
 
+	flush_input(socket);
 	return 0;
 }
 
@@ -334,9 +355,16 @@ int main (void) {
 					respond(client_fd, 400,
 					        "Packet invalidly truncated");
 					break;
+				case InternalError:
+					respond(client_fd, 999,
+					        "Server messed up while processing your request");
+					break;
+				default:
+					puts("Unhandled error");
+					break;
 				}
 			} else {
-				char *target;
+				const char *target;
 
 				switch (p.method) {
 				case Get:
@@ -345,14 +373,17 @@ int main (void) {
 					ok(&p);
 					break;
 				case Put:
+					respond(client_fd, 200, "Ignored");
 					break;
+				default:
+					puts("Unhandled method");
 				}
 			}
 		}
-		close(client_fd);
+		shutdown(client_fd, SHUT_RDWR);
 		connections[1] = 0;
 	}
-	close(socket_fd);
+	shutdown(socket_fd, SHUT_RDWR);
 	connections[0] = 0;
 
 	return 0;

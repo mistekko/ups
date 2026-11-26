@@ -112,6 +112,7 @@ int main (void) {
 				response_size = read(server_fd, response, 511);
 				if (response_size == -1) {
 					close(packet_fd);
+					shutdown(server_fd, SHUT_RDWR);
 					die("Failed to receive response from server");
 				} else if (response_size < 12) {
 					puts("response too small to be valid");
