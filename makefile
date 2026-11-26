@@ -13,6 +13,9 @@ sed_sanitize_script = \
 	-e 's/^/"/g' \
 	-e 's/$$/\\n"/g' \
 
+up: up.c resources.h
+	${CC} ${CFLAGS} -o up up.c
+
 resources.h: up.html favicon.svg makefile
 # ensure that sizeof(up.html) is four digits
 	[ ${up_html_size} -lt 10000 ] || exit 1
@@ -41,13 +44,8 @@ resources.h: up.html favicon.svg makefile
 	echo ";" >> resources.h
 	@echo # spacer for any subsequent recipes
 
-up: up.c resources.h
-	${CC} ${CFLAGS} -o up up.c
-
 tester: up tester.c
 	${CC} ${CFLAGS} -o tester tester.c
-
-default: up
 
 all: tester up
 
@@ -55,4 +53,4 @@ install: up
 	cp -f up "${PREFIX}/bin"
 
 clean:
-	rm resources.h up tester
+	rm resources.h up tester test 2>/dev/null # `test' is created during testing
