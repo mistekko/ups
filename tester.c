@@ -81,9 +81,10 @@ int main (void) {
 		while ((packet_file = readdir(test_packet_dir))) {
 			fname = packet_file->d_name;
 
-			if (strcmp(fname, ".") == 0 || strcmp(fname, "..") == 0)
-				/* it's okay to call close(3) on an invalid fd */
-				goto cleanup_and_continue;
+			if (strcmp(fname, ".") == 0 || strcmp(fname, "..") == 0) {
+				errno = 0;
+				continue;
+			}
 
 			printf("%25s... ", fname);
 			packet_fd = open(fname, O_RDONLY);

@@ -1,6 +1,6 @@
 PREFIX ?= "/usr/local"
 CC ?= cc
-CFLAGS += -ggdb -std=c99 -Wall -Wextra -pedantic
+CFLAGS += -O3 -std=c99 -Wall -Wextra -pedantic
 up_html_size = $(shell du -b up.html | cut -f1)
 favicon_size = $(shell du -b favicon.svg | cut -f1)
 

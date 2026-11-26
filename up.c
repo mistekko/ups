@@ -33,23 +33,65 @@ enum PacketError {
 };
 
 enum Target {
-	Page,
+	Page = 1,
 	Favicon,
 	Upload
 };
 
 enum Method {
-	Get,
+	Get = 1,
 	Put
 };
 
 struct packet {
 	enum Method method;
 	enum Target target;
-	char *body;
 	char *target_path;
 	ssize_t body_len;
+	char *body;
 };
+
+void print_packet(struct packet *p) {
+	puts("{");
+
+	printf("\t     .method = ");
+	if (p->method)
+		switch (p->method) {
+		case Get: puts("Get"); break;
+		case Put: puts("Put"); break;
+		default:  printf("%d\n", p->method);
+		}
+	else           puts("[MISSING]");
+
+	printf("\t     .target = ");
+	if (p->target)
+		switch (p->target) {
+		case Page:    puts("Page");    break;
+		case Favicon: puts("Favicon"); break;
+		case Upload:  puts("Upload");  break;
+		default: printf("%d\n", p->target);
+		}
+
+	printf("\t.target_path = ");
+	if (p->target_path) printf("\"%s\"\n", p->target_path);
+	else
+		if (p->target == Upload) puts("[MISSING]");
+		else puts("N/A");
+
+	printf("\t   .body_len = ");
+	if (p->body_len) printf("%zu\n", p->body_len);
+	else
+		if (p->method == Put) puts("[MISSING]");
+		else puts("N/A");
+
+	printf("\t       .body = ");
+	if (p->body) puts(p->body);
+	else
+		if (p->method == Put) puts("[MISSING]");
+		else puts("N/A");
+
+	puts("}");
+}
 
 const char *target_packets[] = {
 	[Page] = document_packet,
@@ -265,10 +307,12 @@ void ok (struct packet *p) {
 	switch (p->method) {
 	case Get:  method = "GET";  break;
 	case Put:  method = "PUT";  break;
+	default: print_packet(p); die("Invalid packet");
 	} switch (p->target) {
 	case Page:    target = "/up.html";     break;
 	case Favicon: target = "/favicon.svg"; break;
 	case Upload:  target = "/???";         break;
+	default: print_packet(p); die("Invalid packet");
 	}
 
 	printf("200: %s %s\n", method, target);
